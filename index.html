@@ -896,8 +896,7 @@
         const mainChk = document.getElementById('select-all-bill-challans');
         document.querySelectorAll('.bill-chk').forEach(chk => chk.checked = mainChk.checked);
     }
-
-    function proceedToRateEntry() {
+function proceedToRateEntry() {
         const chks = document.querySelectorAll('.bill-chk:checked');
         if(!chks.length) return showToast('Select at least one challan', 'error');
         
@@ -921,7 +920,8 @@
             <tr>
                 <td>${i.item_name} ${i.style?'/ '+i.style:''}</td><td>${i.uom}</td><td>${i.pcs}</td><td>${i.finish_kg.toFixed(2)}</td>
                 <td><input type="number" class="table-input lbs-inp" placeholder="0.00"></td>
-                <td><select class="table-input cur-inp"><option>৳</option><option>$</option></select></td>
+                <!-- নিচের লাইনে onchange যোগ করা হয়েছে -->
+                <td><select class="table-input cur-inp" onchange="calcTotal()"><option>৳</option><option>$</option></select></td>
                 <td><input type="number" class="table-input rate-inp" data-kg="${i.finish_kg}" oninput="calcRow(this)"></td>
                 <td><input type="number" class="table-input amt-inp" oninput="calcTotal()"></td>
             </tr>
@@ -929,21 +929,21 @@
         
         document.getElementById('bill-step-1').classList.remove('active');
         document.getElementById('bill-step-2').classList.add('active');
-    }
-
-    function calcRow(el) {
-        const row = el.closest('tr');
-        const kg = parseFloat(el.dataset.kg);
-        const rate = parseFloat(el.value)||0;
-        row.querySelector('.amt-inp').value = (kg * rate).toFixed(2);
+        
+        // পেজ লোড হওয়ার সাথে সাথে একবার ক্যালকুলেট কল করা হলো
         calcTotal();
     }
-    function calcTotal() {
+      function calcTotal() {
         let sub = 0;
         document.querySelectorAll('.amt-inp').forEach(i => sub += parseFloat(i.value)||0);
         document.getElementById('b_subtotal').value = sub.toFixed(2);
         document.getElementById('b_nettotal').value = sub.toFixed(2);
-        document.getElementById('b_amount_words').value = numberToWords(sub);
+        
+        // প্রথম রো (Row) থেকে কারেন্সি চেক করা হচ্ছে
+        const firstRowCurrency = document.querySelector('.cur-inp')?.value;
+        const currencyName = (firstRowCurrency === '$') ? 'Dollars' : 'Taka';
+        
+        document.getElementById('b_amount_words').value = numberToWords(sub, currencyName);
     }
     
     function backToStep1() {
@@ -1045,7 +1045,6 @@ function printChallan(id) {
         if(!c) return;
         const items = JSON.parse(c.items);
         
-        // এখানে SR NO যোগ করা হয়েছে
         const getPage = (copyType) => `
             <div class="print-page">
                 <div class="copy-label">${copyType}</div>
@@ -1079,7 +1078,8 @@ function printChallan(id) {
                             <th>Raw KG</th>
                             <th>Fin KG</th>
                             <th>Bag</th>
-                            <th>SR NO</th> <!-- এই লাইনটি নতুন যোগ করা হয়েছে -->
+                            <th>SR NO</th>
+                            <th>Process</th> <!-- Process কলাম যোগ করা হয়েছে -->
                             <th>Rem</th>
                         </tr>
                     </thead>
@@ -1096,7 +1096,8 @@ function printChallan(id) {
                                 <td>${i.raw_kg}</td>
                                 <td>${i.finish_kg}</td>
                                 <td>${i.bag}</td>
-                                <td>${i.ashar_no || '-'}</td> <!-- এই লাইনটি ডাটা দেখানোর জন্য যোগ করা হয়েছে -->
+                                <td>${i.ashar_no || '-'}</td>
+                                <td>${i.process || '-'}</td> <!-- Process ডাটা যোগ করা হয়েছে -->
                                 <td>${i.remarks}</td>
                             </tr>`).join('')}
                     </tbody>
@@ -1107,8 +1108,9 @@ function printChallan(id) {
                             <td>-</td>
                             <td>${c.total_finish_kg.toFixed(2)}</td>
                             <td>${c.total_bags}</td>
-                            <td></td> <!-- SR NO এর নিচের খালি ঘর -->
-                            <td></td>
+                            <td></td> <!-- SR NO এর জন্য খালি ঘর -->
+                            <td></td> <!-- Process এর জন্য খালি ঘর -->
+                            <td></td> <!-- Remarks এর জন্য খালি ঘর -->
                         </tr>
                     </tfoot>
                 </table>
@@ -1263,8 +1265,8 @@ function printChallan(id) {
     function closePreview() { document.getElementById('preview-modal').classList.remove('active'); }
     function confirmPrint() { closePreview(); setTimeout(()=>window.print(), 300); }
 
-    function numberToWords(num) {
-        if(num===0) return 'Zero Taka';
+function numberToWords(num, currency = 'Taka') {
+        if(num===0) return 'Zero ' + currency;
         const a = ['','One ','Two ','Three ','Four ', 'Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
         const b = ['', '', 'Twenty','Thirty','Forty','Fifty', 'Sixty','Seventy','Eighty','Ninety'];
         const n = ('000000000' + parseInt(num)).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
@@ -1274,8 +1276,11 @@ function printChallan(id) {
         str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'Lakh ' : '';
         str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Thousand ' : '';
         str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'Hundred ' : '';
-        str += (n[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) + 'Taka Only' : 'Taka Only';
-        return str;
+        
+        str += (n[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
+        
+        // এখানে কারেন্সি ডায়নামিক করা হয়েছে
+        return str + ' ' + currency + ' Only';
     }
 </script>
 </body>
