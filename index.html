@@ -3,18 +3,7 @@
 
   <head>
     <meta charset="UTF-8">
-    <title>Printing Mcd.1</title>
-    
-
-  </head>
-    
-  <body>
-  <!DOCTYPE html>
-<html lang="en">
-
-  <head>
-    <meta charset="UTF-8">
-    <title>22-11-2025</title>
+    <title>Printing Mcd.2</title>
     
 
   </head>
@@ -323,10 +312,26 @@
     <section id="challanList-view" class="view-section">
         <div class="card">
             <div class="card-header"><span>📜 Challan History</span></div>
-            <div class="search-bar" style="display:flex; gap:10px; margin-bottom:20px;">
-                <input type="text" id="search-challan" class="form-input" placeholder="Search by Challan No, Party..." onkeyup="filterChallans()">
-                <input type="date" id="search-challan-from" class="form-input" onchange="filterChallans()">
-                <input type="date" id="search-challan-to" class="form-input" onchange="filterChallans()">
+            <div class="search-bar" style="display:flex; gap:10px; margin-bottom:20px; align-items: end;">
+                <div class="form-group" style="margin:0; flex: 1;">
+                    <label class="form-label">Select Party*</label>
+                    <select id="filter-challan-party" class="form-select">
+                        <option value="">-- Search Party --</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin:0; flex: 1;">
+                    <label class="form-label">Search (Optional)</label>
+                    <input type="text" id="search-challan" class="form-input" placeholder="Challan No, Buyer...">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label class="form-label">From Date</label>
+                    <input type="date" id="search-challan-from" class="form-input">
+                </div>
+                <div class="form-group" style="margin:0;">
+                    <label class="form-label">To Date</label>
+                    <input type="date" id="search-challan-to" class="form-input">
+                </div>
+                <button class="btn btn-primary" style="margin-bottom: 1px; height: 42px;" onclick="searchAndRenderChallans()"><i class="fas fa-search"></i> Show</button>
             </div>
             <div class="table-container">
                 <table>
@@ -546,7 +551,7 @@
         });
         db.ref('challans').on('value', s => { 
             challans = snapshotToArr(s); 
-            renderChallanList(); 
+            // renderChallanList(); অটো লোড বন্ধ করা হয়েছে
             updateDashboard(); 
             if(!editingChallanId) generateChallanNumber(); 
         });
@@ -575,18 +580,20 @@
     }
 
     // --- Navigation ---
-    function showView(viewName) {
-        document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
-        document.getElementById(`${viewName}-view`).classList.add('active');
-        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-        event.target.closest('button')?.classList.add('active');
-        
-        if(viewName === 'challanEntry') {
-            if(!editingChallanId) resetChallanForm();
-        }
-        if(viewName === 'billGenerate') { resetBillSteps(); generateBillNumber(); }
-        if(viewName === 'reports') { generateReports(); }
+function showView(viewName) {
+    document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+    document.getElementById(`${viewName}-view`).classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    event.target.closest('button')?.classList.add('active');
+    
+    if(viewName === 'challanEntry') {
+        if(!editingChallanId) resetChallanForm();
     }
+    if(viewName === 'billGenerate') { 
+        if(!editingBillId) { resetBillSteps(); generateBillNumber(); }
+    }
+    if(viewName === 'reports') { generateReports(); }
+}
 
     // --- Dashboard Update Logic ---
     function updateDashboard() {
@@ -816,11 +823,36 @@
         document.getElementById('save-challan-btn').innerHTML = '<i class="fas fa-save"></i> Save Challan';
         document.getElementById('cancel-edit-btn').style.display = 'none';
     }
+    function populatePartyDropdowns() {
+        const opts = '<option value="">Select Party</option>' + parties.map(p => `<option value="${p.__backendId}">${p.party_name}</option>`).join('');
+        document.getElementById('c_party').innerHTML = opts;
+        document.getElementById('bill_party').innerHTML = opts;
+        
+        // নতুন ফিল্টার ড্রপডাউনে পার্টি লোড করা হচ্ছে
+        const filterOpts = '<option value="">-- Search Party --</option>' + parties.map(p => `<option value="${p.__backendId}">${p.party_name}</option>`).join('');
+        document.getElementById('filter-challan-party').innerHTML = filterOpts;
 
-    function renderChallanList() {
+        if(editingChallanId) {
+             const c = challans.find(x => x.__backendId === editingChallanId);
+             if(c) document.getElementById('c_party').value = c.party_id;
+        }
+    }
+
+    function renderChallanList(listToShow = null) {
         const tbody = document.getElementById('challan-list-tbody');
-        if(!challans.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center">No Challans</td></tr>'; return; }
-        tbody.innerHTML = challans.sort((a,b)=>b.timestamp-a.timestamp).map(c => `
+        
+        // যদি কোনো ডাটা পাস না করা হয় (অর্থাৎ প্রথমে যখন ওপেন করা হয়)
+        if (!listToShow) {
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#666; padding:40px; font-size:15px;">কোনো চালান লোড করা হয়নি।<br>উপরে থেকে পার্টি সিলেক্ট করে <b>"Show"</b> Click the Button</td></tr>';
+            return;
+        }
+
+        if(!listToShow.length) { 
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:#999; padding:30px;">এই শর্তে কোনো চালান পাওয়া যায়নি</td></tr>'; 
+            return; 
+        }
+        
+        tbody.innerHTML = listToShow.sort((a,b)=>b.timestamp-a.timestamp).map(c => `
             <tr>
                 <td>${c.challan_no}</td><td>${c.date}</td><td>${c.party_name}</td><td>${c.buyer_name||'-'}</td>
                 <td>${c.total_pcs}</td><td>${c.total_finish_kg.toFixed(2)}</td><td>${c.total_bags}</td>
@@ -833,26 +865,41 @@
         `).join('');
     }
 
-    // --- Search/Filter ---
-    function filterChallans() {
+    // নতুন সার্চ ফাংশন যা বাটনে ক্লিক করলে কাজ করবে
+    function searchAndRenderChallans() {
+        const partyId = document.getElementById('filter-challan-party').value;
         const text = document.getElementById('search-challan').value.toLowerCase();
         const fromDate = document.getElementById('search-challan-from').value;
         const toDate = document.getElementById('search-challan-to').value;
-        const rows = document.querySelectorAll('#challan-list-tbody tr');
-        rows.forEach(row => {
-            if(row.cells.length < 3) return;
-            const cNo = row.cells[0].innerText.toLowerCase();
-            const cDate = row.cells[1].innerText;
-            const cParty = row.cells[2].innerText.toLowerCase();
-            const cBuyer = row.cells[3].innerText.toLowerCase();
-            let matchesText = (cNo.includes(text) || cParty.includes(text) || cBuyer.includes(text));
-            let matchesDate = true;
-            if(fromDate && cDate < fromDate) matchesDate = false;
-            if(toDate && cDate > toDate) matchesDate = false;
-            row.style.display = (matchesText && matchesDate) ? '' : 'none';
-        });
-    }
 
+        // প্রথমে সব চালান কপি করে নিচ্ছি
+        let filtered = [...challans];
+
+        // পার্টি অনুযায়ী ফিল্টার
+        if(partyId) {
+            filtered = filtered.filter(c => c.party_id === partyId);
+        }
+
+        // টেক্সট অনুযায়ী ফিল্টার (চালান নং, পার্টি, বায়ার)
+        if(text) {
+            filtered = filtered.filter(c => 
+                (c.challan_no && c.challan_no.toLowerCase().includes(text)) || 
+                (c.party_name && c.party_name.toLowerCase().includes(text)) || 
+                (c.buyer_name && c.buyer_name.toLowerCase().includes(text))
+            );
+        }
+
+        // তারিখ অনুযায়ী ফিল্টার
+        if(fromDate) {
+            filtered = filtered.filter(c => c.date >= fromDate);
+        }
+        if(toDate) {
+            filtered = filtered.filter(c => c.date <= toDate);
+        }
+
+        // ফিল্টার করা ডাটা দিয়ে টেবিল রেন্ডার করছি
+        renderChallanList(filtered);
+    }
     function filterBills() {
         const text = document.getElementById('search-bill').value.toLowerCase();
         const month = document.getElementById('search-bill-month').value;
@@ -871,68 +918,126 @@
 
     // --- Bill Logic ---
     function generateBillNumber() { document.getElementById('bp_no').value = `GMS-BILL-${new Date().getFullYear()}-${String(bills.length+1).padStart(5,'0')}`; }
-    function resetBillSteps() {
-        document.getElementById('bill-step-1').classList.add('active');
-        document.getElementById('bill-step-2').classList.remove('active');
-        document.getElementById('pending-challans-container').style.display = 'none';
-        selectedBillChallans = [];
-    }
+function resetBillSteps() {
+    editingBillId = null;
+    document.getElementById('bill-step-1').classList.add('active');
+    document.getElementById('bill-step-2').classList.remove('active');
+    document.getElementById('pending-challans-container').style.display = 'none';
+    selectedBillChallans = [];
+}
     function loadPendingChallansForBill() {
-        const pid = document.getElementById('bill_party').value;
-        if(!pid) return showToast('Select Party', 'error');
-        const filtered = challans.filter(c => c.party_id === pid && c.status === 'pending');
-        if(!filtered.length) return showToast('No pending challans', 'error');
-        
-        document.getElementById('pending-challans-tbody').innerHTML = filtered.map(c => `
-            <tr>
-                <td><input type="checkbox" class="bill-chk" data-id="${c.__backendId}"></td>
-                <td>${c.challan_no}</td><td>${c.date}</td><td>${c.location||'-'}</td><td>${c.total_pcs}</td><td>${c.total_finish_kg}</td><td>${c.total_bags}</td>
-            </tr>
-        `).join('');
-        document.getElementById('pending-challans-container').style.display = 'block';
+    const pid = document.getElementById('bill_party').value;
+    if(!pid) return showToast('Select Party', 'error');
+
+    // ঐ পার্টির সব চালান ফিল্টার করা হচ্ছে যেগুলোর অন্তত একটি আইটেম এখনো বিল হয়নি
+    const filteredChallans = challans.filter(c => c.party_id === pid && c.status !== 'billed');
+    
+    let html = "";
+    let foundItems = false;
+
+    filteredChallans.forEach(c => {
+        const items = JSON.parse(c.items);
+        items.forEach((item, index) => {
+            // যদি আইটেমটি আগে বিল না হয়ে থাকে (billed property না থাকে)
+            if (!item.billed) {
+                foundItems = true;
+                html += `
+                    <tr>
+                        <td><input type="checkbox" class="bill-item-chk" 
+                            data-challan-id="${c.__backendId}" 
+                            data-item-index="${index}"></td>
+                        <td>${c.challan_no}</td>
+                        <td style="background: #fff8e1; font-weight: bold;">${item.ashar_no || 'N/A'}</td>
+                        <td>${item.item_name}</td>
+                        <td>${item.style || '-'}</td>
+                        <td>${item.pcs}</td>
+                        <td>${item.finish_kg}</td>
+                    </tr>
+                `;
+            }
+        });
+    });
+
+    if(!foundItems) {
+        document.getElementById('pending-challans-container').style.display = 'none';
+        return showToast('No pending SR/Items found for this party', 'error');
     }
+
+    document.getElementById('pending-challans-tbody').innerHTML = html;
+    document.getElementById('pending-challans-container').style.display = 'block';
+    // হেডার পরিবর্তন (SR No কলাম যোগ করার জন্য)
+    document.querySelector('#pending-challans-container thead tr').innerHTML = `
+        <th style="width: 50px;"><input type="checkbox" id="select-all-bill-challans" onchange="toggleAllBillChallans()"></th>
+        <th>Challan No</th>
+        <th>SR NO (AShar)</th>
+        <th>Item Name</th>
+        <th>Style</th>
+        <th>PCS</th>
+        <th>Finish KG</th>
+    `;
+}
     
     function toggleAllBillChallans() {
         const mainChk = document.getElementById('select-all-bill-challans');
         document.querySelectorAll('.bill-chk').forEach(chk => chk.checked = mainChk.checked);
     }
 function proceedToRateEntry() {
-        const chks = document.querySelectorAll('.bill-chk:checked');
-        if(!chks.length) return showToast('Select at least one challan', 'error');
+    const chks = document.querySelectorAll('.bill-item-chk:checked');
+    if(!chks.length) return showToast('Select at least one SR/Item', 'error');
+    
+    selectedBillChallans = []; // এখানে আমরা আসলে আইটেমগুলো স্টোর করবো
+    
+    let rowsHtml = "";
+    chks.forEach(chk => {
+        const cId = chk.dataset.challanId;
+        const idx = chk.dataset.itemIndex;
+        const challan = challans.find(c => c.__backendId === cId);
+        const item = JSON.parse(challan.items)[idx];
         
-        selectedBillChallans = Array.from(chks).map(box => challans.find(c => c.__backendId === box.dataset.id));
-        
-        document.getElementById('bp_name').value = selectedBillChallans[0].party_name;
-        document.getElementById('selected-challan-nos').textContent = selectedBillChallans.map(c=>c.challan_no).join(', ');
-        
-        const map = new Map();
-        selectedBillChallans.forEach(c => {
-            JSON.parse(c.items).forEach(i => {
-                const key = `${i.item_name}_${i.style}_${i.uom}`;
-                if(!map.has(key)) map.set(key, { ...i, pcs:0, finish_kg:0 });
-                const ex = map.get(key);
-                ex.pcs += i.pcs;
-                ex.finish_kg += i.finish_kg;
-            });
+        // বিল সেভ করার সময় রেফারেন্সের জন্য ডাটা রাখছি
+        selectedBillChallans.push({
+            challanId: cId,
+            itemIndex: idx,
+            challanNo: challan.challan_no,
+            itemData: item
         });
 
-        document.getElementById('bill-rate-tbody').innerHTML = Array.from(map.values()).map((i, idx) => `
+        rowsHtml += `
             <tr>
-                <td>${i.item_name} ${i.style?'/ '+i.style:''}</td><td>${i.uom}</td><td>${i.pcs}</td><td>${i.finish_kg.toFixed(2)}</td>
+                <td>
+                    <b>SR: ${item.ashar_no || 'N/A'}</b><br>
+                    <small>${item.item_name} (${item.style || ''})</small><br>
+                    <small style="color:blue">CH: ${challan.challan_no}</small>
+                </td>
+                <td>${item.uom}</td>
+                <td>${item.pcs}</td>
+                <td>${item.finish_kg.toFixed(2)}</td>
                 <td><input type="number" class="table-input lbs-inp" placeholder="0.00"></td>
-                <!-- নিচের লাইনে onchange যোগ করা হয়েছে -->
                 <td><select class="table-input cur-inp" onchange="calcTotal()"><option>৳</option><option>$</option></select></td>
-                <td><input type="number" class="table-input rate-inp" data-kg="${i.finish_kg}" oninput="calcRow(this)"></td>
+                <td><input type="number" class="table-input rate-inp" oninput="calcRow(this)"></td>
                 <td><input type="number" class="table-input amt-inp" oninput="calcTotal()"></td>
             </tr>
-        `).join('');
-        
-        document.getElementById('bill-step-1').classList.remove('active');
-        document.getElementById('bill-step-2').classList.add('active');
-        
-        // পেজ লোড হওয়ার সাথে সাথে একবার ক্যালকুলেট কল করা হলো
-        calcTotal();
-    }
+        `;
+    });
+
+    document.getElementById('bp_name').value = challans.find(c => c.__backendId === selectedBillChallans[0].challanId).party_name;
+    document.getElementById('selected-challan-nos').textContent = [...new Set(selectedBillChallans.map(s => s.challanNo))].join(', ');
+    
+    document.getElementById('bill-rate-tbody').innerHTML = rowsHtml;
+    document.getElementById('bill-step-1').classList.remove('active');
+    document.getElementById('bill-step-2').classList.add('active');
+    calcTotal();
+}
+  function calcRow(input) {
+    const row = input.closest('tr');
+    const kg = parseFloat(row.cells[3].innerText) || 0;
+    const rate = parseFloat(input.value) || 0;
+    const amountInput = row.querySelector('.amt-inp');
+    
+    // ফিনিশ কেজি এর সাথে রেট গুণ করে অ্যামাউন্ট বের করা হচ্ছে
+    amountInput.value = (kg * rate).toFixed(2);
+    calcTotal();
+}
       function calcTotal() {
         let sub = 0;
         document.querySelectorAll('.amt-inp').forEach(i => sub += parseFloat(i.value)||0);
@@ -950,82 +1055,101 @@ function proceedToRateEntry() {
         document.getElementById('bill-step-2').classList.remove('active');
         document.getElementById('bill-step-1').classList.add('active');
     }
-
-    function saveBill() {
-        if(!selectedBillChallans.length) return showToast('No challans selected', 'error');
-        
-        const items = [];
-        document.querySelectorAll('#bill-rate-tbody tr').forEach(r => {
-            items.push({
-                rate: parseFloat(r.querySelector('.rate-inp').value)||0,
-                amount: parseFloat(r.querySelector('.amt-inp').value)||0,
-                currency: r.querySelector('.cur-inp').value,
-                lbs: parseFloat(r.querySelector('.lbs-inp').value)||0
-            });
+function saveBill() {
+    if(!selectedBillChallans.length) return showToast('No items selected', 'error');
+    
+    const billItems = [];
+    document.querySelectorAll('#bill-rate-tbody tr').forEach(r => {
+        billItems.push({
+            rate: parseFloat(r.querySelector('.rate-inp').value)||0,
+            amount: parseFloat(r.querySelector('.amt-inp').value)||0,
+            currency: r.querySelector('.cur-inp').value,
+            lbs: parseFloat(r.querySelector('.lbs-inp').value)||0
         });
+    });
 
-        const bill = {
-            bill_no: document.getElementById('bp_no').value,
-            date: document.getElementById('bp_date').value,
-            month: document.getElementById('bp_month').value,
-            party_id: selectedBillChallans[0].party_id,
-            party_name: document.getElementById('bp_name').value,
-            challan_ids: JSON.stringify(selectedBillChallans.map(c=>c.__backendId)),
-            challan_nos: document.getElementById('selected-challan-nos').textContent,
-            sub_total: parseFloat(document.getElementById('b_subtotal').value),
-            net_total: parseFloat(document.getElementById('b_nettotal').value),
-            amount_in_words: document.getElementById('b_amount_words').value,
-            order_qty_note: document.getElementById('b_order_qty_note').value,
-            bill_items: JSON.stringify(items),
-            timestamp: Date.now()
-        };
+    const billData = {
+        bill_no: document.getElementById('bp_no').value,
+        date: document.getElementById('bp_date').value,
+        month: document.getElementById('bp_month').value,
+        party_name: document.getElementById('bp_name').value,
+        challan_nos: document.getElementById('selected-challan-nos').textContent,
+        billed_refs: JSON.stringify(selectedBillChallans),
+        sub_total: parseFloat(document.getElementById('b_subtotal').value),
+        net_total: parseFloat(document.getElementById('b_nettotal').value),
+        amount_in_words: document.getElementById('b_amount_words').value,
+        order_qty_note: document.getElementById('b_order_qty_note').value,
+        bill_items: JSON.stringify(billItems),
+        timestamp: Date.now()
+    };
 
-        const btn = event.target;
-        btn.disabled = true;
-        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-
-        let promise;
-        let newBillKey;
-
-        if(editingBillId) {
-            newBillKey = editingBillId;
-            promise = db.ref('bills/'+editingBillId).update(bill);
+    // এডিট মোডে থাকলে শুধু বিল আপডেট করবো, চালান টাচ করবো না
+    if(editingBillId) {
+        db.ref('bills/' + editingBillId).update(billData).then(() => {
+            showToast('Bill Updated Successfully');
+            printBill(editingBillId);
             editingBillId = null;
-        } else {
-            const newRef = db.ref('bills').push();
-            newBillKey = newRef.key;
-            promise = newRef.set(bill).then(() => {
-                const updates = {};
-                selectedBillChallans.forEach(c => updates[`challans/${c.__backendId}/status`] = 'billed');
-                return db.ref().update(updates);
-            });
-        }
+            document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+            document.getElementById('billList-view').classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+        }).catch(e => showToast(e.message, 'error'));
+        return;
+    }
 
-        promise.then(() => {
-            showToast('Bill Generated Successfully!');
-            printBill(newBillKey);
-            showView('billList');
-        }).catch(e => {
-            showToast('Error: '+e.message, 'error');
-        }).finally(() => {
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fas fa-save"></i> Save & Generate Bill';
+    // নতুন বিল তৈরি
+    const billRef = db.ref('bills').push();
+    billRef.set(billData).then(() => {
+        
+        let updatePromises = [];
+        
+        const updatesByChallan = {};
+        selectedBillChallans.forEach(s => {
+            if(!updatesByChallan[s.challanId]) updatesByChallan[s.challanId] = [];
+            updatesByChallan[s.challanId].push(s.itemIndex);
         });
-    }
 
-    function renderBillList() {
-        const tbody = document.getElementById('bill-list-tbody');
-        if(!bills.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">No Bills</td></tr>'; return; }
-        tbody.innerHTML = bills.sort((a,b)=>b.timestamp-a.timestamp).map(b => `
-            <tr>
-                <td>${b.bill_no}</td><td>${b.date}</td><td>${b.party_name}</td><td>${b.month}</td><td>${b.challan_nos}</td><td>${b.net_total}</td>
-                <td>
-                    <button class="btn btn-primary btn-sm" onclick="printBill('${b.__backendId}')"><i class="fas fa-print"></i></button>
-                    <button class="btn btn-danger btn-sm" onclick="deleteRecord('${b.__backendId}','bill')"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>
-        `).join('');
-    }
+        Object.keys(updatesByChallan).forEach(cId => {
+            const p = db.ref('challans/' + cId).once('value').then(snap => {
+                let cData = snap.val();
+                let items = JSON.parse(cData.items);
+                
+                updatesByChallan[cId].forEach(idx => {
+                    items[idx].billed = true;
+                });
+                
+                const allBilled = items.every(i => i.billed === true);
+                
+                return db.ref('challans/' + cId).update({
+                    items: JSON.stringify(items),
+                    status: allBilled ? 'billed' : 'partial'
+                });
+            });
+            updatePromises.push(p);
+        });
+
+        return Promise.all(updatePromises);
+    }).then(() => {
+        showToast('Bill Generated Successfully (SR Wise)');
+        printBill(billRef.key);
+        document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+        document.getElementById('billList-view').classList.add('active');
+        document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    }).catch(e => showToast(e.message, 'error'));
+}
+function renderBillList() {
+    const tbody = document.getElementById('bill-list-tbody');
+    if(!bills.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center">No Bills</td></tr>'; return; }
+    tbody.innerHTML = bills.sort((a,b)=>b.timestamp-a.timestamp).map(b => `
+        <tr>
+            <td>${b.bill_no}</td><td>${b.date}</td><td>${b.party_name}</td><td>${b.month}</td><td>${b.challan_nos}</td><td>${b.net_total}</td>
+            <td>
+                <button class="btn btn-primary btn-sm" onclick="printBill('${b.__backendId}')"><i class="fas fa-print"></i></button>
+                <button class="btn btn-warning btn-sm" onclick="editBill('${b.__backendId}')"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-danger btn-sm" onclick="deleteRecord('${b.__backendId}','bill')"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>
+    `).join('');
+}
 
     // --- Print Logic ---
     function getHeader(title) {
@@ -1116,102 +1240,202 @@ function printChallan(id) {
                 </table>
                 <div class="print-footer">
                     <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px; text-align:center; margin-top: 50px;">
-                        <div>Prepared</div>
-                        <div>Receiver</div>
-                        <div>Checked</div>
-                        <div>AGM MCD</div>
-                        <div>Approved</div>
+                        <div>
+                            <div style="height: 60px; border-bottom: 1px dashed #000; margin-bottom: 8px;"></div>
+                            <div>Prepared</div>
+                        </div>
+                        <div>
+                            <div style="height: 60px; border-bottom: 1px dashed #000; margin-bottom: 8px;"></div>
+                            <div>Receiver</div>
+                        </div>
+                        <div>
+                            <div style="height: 60px; border-bottom: 1px dashed #000; margin-bottom: 8px;"></div>
+                            <div>Checked</div>
+                        </div>
+                        <div>
+                            <div style="height: 60px; border-bottom: 1px dashed #000; margin-bottom: 8px;"></div>
+                            <div>AGM MCD</div>
+                        </div>
+                        <div>
+                            <div style="height: 60px; border-bottom: 1px dashed #000; margin-bottom: 8px;"></div>
+                            <div>Approved</div>
+                        </div>
                     </div>
                 </div>
-            </div>
         `;
-        document.getElementById('print-area').innerHTML = getPage("FIRST COPY") + '<div class="page-break"></div>' + getPage("SECOND COPY");
+        document.getElementById('print-area').innerHTML = getPage("Party Copy") + '<div class="page-break"></div>' + getPage("Office Copy");
         showPrintPreview('Challan');
     }
-    function printBill(id) {
-        const b = bills.find(x => x.__backendId === id);
-        if(!b) return;
-        const challanIds = JSON.parse(b.challan_ids);
-        const billItems = JSON.parse(b.bill_items);
-        const assocChallans = challans.filter(c => challanIds.includes(c.__backendId));
-        let allItems = [];
-        let idx = 0;
-        assocChallans.forEach(c => {
-            JSON.parse(c.items).forEach(i => {
-                const bi = billItems[idx] || {};
-                allItems.push({ ...i, ...bi, challan_no: c.challan_no });
-                idx++;
+function printBill(id) {
+    const b = bills.find(x => x.__backendId === id);
+    if(!b) return;
+    const billItems = JSON.parse(b.bill_items);
+    
+    let allItems = [];
+
+    // পুরানো বিল (challan_ids) এবং নতুন বিল (billed_refs) দুটোই সাপোর্ট করা হচ্ছে
+    if(b.billed_refs) {
+        const billedRefs = JSON.parse(b.billed_refs);
+        billedRefs.forEach((ref, idx) => {
+            const bi = billItems[idx] || {};
+            allItems.push({ 
+                ...ref.itemData, 
+                ...bi, 
+                challan_no: ref.challanNo 
             });
         });
+    } else if(b.challan_ids) {
+        // পুরানো ফরম্যাটের বিল হ্যান্ডেল করা
+        const challanIds = JSON.parse(b.challan_ids);
+        const assocChallans = challans.filter(c => challanIds.includes(c.__backendId));
+        let billItemIdx = 0;
+        assocChallans.forEach(c => {
+            const items = JSON.parse(c.items);
+            items.forEach(i => {
+                const bi = billItems[billItemIdx] || {};
+                allItems.push({ ...i, ...bi, challan_no: c.challan_no });
+                billItemIdx++;
+            });
+        });
+    }
 
-        const getPage = (copyType) => `
-            <div class="print-page">
-                <div class="copy-label">${copyType}</div>
-                ${getHeader('BILL / INVOICE')}
-                <div class="print-details" style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
-                    <div>
-                        <p><strong>Bill No:</strong> ${b.bill_no}</p>
-                        <p><strong>Date:</strong> ${b.date}</p>
-                        <p><strong>Month:</strong> ${b.month}</p>
-                    </div>
-                    <div>
-                        <p><strong>Party:</strong> ${b.party_name}</p>
-                        <p><strong>Ref Challans:</strong> ${b.challan_nos}</p>
-                    </div>
+    const getPage = (copyType) => `
+        <div class="print-page">
+            <div class="copy-label">${copyType}</div>
+            ${getHeader('BILL / INVOICE')}
+            <div class="print-details" style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+                <div>
+                    <p><strong>Bill No:</strong> ${b.bill_no}</p>
+                    <p><strong>Date:</strong> ${b.date}</p>
+                    <p><strong>Month:</strong> ${b.month}</p>
                 </div>
-                <table class="print-table">
-                    <thead>
+                <div>
+                    <p><strong>Party:</strong> ${b.party_name}</p>
+                    <p><strong>Ref Challans:</strong> ${b.challan_nos}</p>
+                </div>
+            </div>
+            <table class="print-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Challan No</th>
+                        <th>SR NO</th>
+                        <th>Style</th>
+                        <th>Item</th>
+                        <th>Color</th>
+                        <th>UOM</th>
+                        <th>PCS</th>
+                        <th>Fin KG</th>
+                        <th>LBS</th>
+                        <th>Rate</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${allItems.map((i, ix) => `
                         <tr>
-                            <th style="width: 30px;">#</th>
-                            <th style="width: 100px;">Challan No</th>
-                            <th>Style</th>
-                            <th>Item</th>
-                            <th>Color</th>
-                            <th>UOM</th>
-                            <th>PCS</th>
-                            <th>Fin KG</th>
-                            <th>LBS</th>
-                            <th>Rate</th>
-                            <th>Amount</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${allItems.map((i,ix)=>`
-                            <tr>
-                                <td>${ix+1}</td>
-                                <td style="font-weight:bold;">${i.challan_no}</td>
-                                <td>${i.style}</td>
-                                <td>${i.item_name}</td>
-                                <td>${i.color}</td>
-                                <td>${i.uom}</td>
-                                <td>${i.pcs}</td>
-                                <td>${i.finish_kg.toFixed(2)}</td>
-                                <td>${i.lbs||0}</td>
-                                <td>${i.rate}</td>
-                                <td>${i.amount}</td>
-                            </tr>`).join('')}
-                    </tbody>
-                    <tfoot>
-                        <tr><td colspan="10" style="text-align:right">Total:</td><td>${b.net_total}</td></tr>
-                        ${b.order_qty_note ? `<tr><td colspan="11"><strong>Bill According To Order Qty:</strong> ${b.order_qty_note}</td></tr>` : ''}
-                        <tr><td colspan="11"><strong>In Words:</strong> ${b.amount_in_words}</td></tr>
-                    </tfoot>
-                </table>
-                 <div class="print-footer">
-                    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px; text-align:center; font-size:11px; margin-top: 50px;">
+                            <td>${ix + 1}</td>
+                            <td>${i.challan_no}</td>
+                            <td>${i.ashar_no || '-'}</td>
+                            <td>${i.style}</td>
+                            <td>${i.item_name}</td>
+                            <td>${i.color}</td>
+                            <td>${i.uom}</td>
+                            <td>${i.pcs}</td>
+                            <td>${i.finish_kg.toFixed(2)}</td>
+                            <td>${i.lbs || 0}</td>
+                            <td>${i.rate}</td>
+                            <td>${i.amount}</td>
+                        </tr>`).join('')}
+                </tbody>
+                <tfoot>
+                    <tr><td colspan="11" style="text-align:right">Total:</td><td>${b.net_total}</td></tr>
+                    ${b.order_qty_note ? `<tr><td colspan="12"><strong>Order Note:</strong> ${b.order_qty_note}</td></tr>` : ''}
+                    <tr><td colspan="12"><strong>In Words:</strong> ${b.amount_in_words}</td></tr>
+                </tfoot>
+            </table>
+            <div class="print-footer">
+                <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:10px; text-align:center; margin-top: 50px;">
+                    <div>
+                        <div style="height: 60px; border-bottom: 1px dashed #000; margin-bottom: 8px;"></div>
                         <div>Prepared</div>
+                    </div>
+                    <div>
+                        <div style="height: 60px; border-bottom: 1px dashed #000; margin-bottom: 8px;"></div>
                         <div>Receiver</div>
+                    </div>
+                    <div>
+                        <div style="height: 60px; border-bottom: 1px dashed #000; margin-bottom: 8px;"></div>
                         <div>Checked</div>
+                    </div>
+                    <div>
+                        <div style="height: 60px; border-bottom: 1px dashed #000; margin-bottom: 8px;"></div>
                         <div>AGM MCD</div>
+                    </div>
+                    <div>
+                        <div style="height: 60px; border-bottom: 1px dashed #000; margin-bottom: 8px;"></div>
                         <div>Approved</div>
                     </div>
                 </div>
             </div>
+        </div>
+    `;
+    document.getElementById('print-area').innerHTML = getPage("Party Copy") + '<div class="page-break"></div>' + getPage("Office Copy");
+    showPrintPreview('Bill');
+}
+  function editBill(id) {
+    const b = bills.find(x => x.__backendId === id);
+    if(!b) return showToast("Bill not found", "error");
+    
+    editingBillId = id;
+    
+    // সরাসরি স্টেপ ২ তে যাওয়া
+    document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
+    document.getElementById('billGenerate-view').classList.add('active');
+    document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+    
+    document.getElementById('bill-step-1').classList.remove('active');
+    document.getElementById('bill-step-2').classList.add('active');
+    
+    document.getElementById('bp_name').value = b.party_name;
+    document.getElementById('bp_no').value = b.bill_no;
+    document.getElementById('bp_date').value = b.date;
+    document.getElementById('bp_month').value = b.month;
+    document.getElementById('selected-challan-nos').textContent = b.challan_nos;
+    document.getElementById('b_subtotal').value = b.sub_total;
+    document.getElementById('b_nettotal').value = b.net_total;
+    document.getElementById('b_amount_words').value = b.amount_in_words;
+    document.getElementById('b_order_qty_note').value = b.order_qty_note || '';
+    
+    const billItems = JSON.parse(b.bill_items);
+    const billedRefs = JSON.parse(b.billed_refs);
+    selectedBillChallans = billedRefs;
+    
+    let rowsHtml = "";
+    billedRefs.forEach((ref, idx) => {
+        const bi = billItems[idx] || {};
+        rowsHtml += `
+            <tr>
+                <td>
+                    <b>SR: ${ref.itemData.ashar_no || 'N/A'}</b><br>
+                    <small>${ref.itemData.item_name} (${ref.itemData.style || ''})</small><br>
+                    <small style="color:blue">CH: ${ref.challanNo}</small>
+                </td>
+                <td>${ref.itemData.uom}</td>
+                <td>${ref.itemData.pcs}</td>
+                <td>${ref.itemData.finish_kg.toFixed(2)}</td>
+                <td><input type="number" class="table-input lbs-inp" value="${bi.lbs || 0}"></td>
+                <td><select class="table-input cur-inp" onchange="calcTotal()"><option ${bi.currency==='৳'?'selected':''}>৳</option><option ${bi.currency==='$'?'selected':''}>$</option></select></td>
+                <td><input type="number" class="table-input rate-inp" value="${bi.rate || 0}" oninput="calcRow(this)"></td>
+                <td><input type="number" class="table-input amt-inp" value="${bi.amount || 0}" oninput="calcTotal()"></td>
+            </tr>
         `;
-        document.getElementById('print-area').innerHTML = getPage("FIRST COPY") + '<div class="page-break"></div>' + getPage("SECOND COPY");
-        showPrintPreview('Bill');
-    }
-
+    });
+    
+    document.getElementById('bill-rate-tbody').innerHTML = rowsHtml;
+    calcTotal();
+    showToast('Edit mode - Bill: ' + b.bill_no);
+}
     // --- Utils ---
     let editingChallanId = null;
     let editingBillId = null;
@@ -1247,12 +1471,49 @@ function printChallan(id) {
         showToast('Edit mode loaded');
     }
 
-    function deleteRecord(id, type) {
-        if(confirm('Delete this?')) {
-            db.ref((type==='party'?'parties':type==='challan'?'challans':'bills')+'/'+id).remove();
+function deleteRecord(id, type) {
+    if(!confirm('Are you sure you want to delete this?')) return;
+    
+    if(type === 'bill') {
+        const bill = bills.find(b => b.__backendId === id);
+        if(bill && bill.billed_refs) {
+            const refs = JSON.parse(bill.billed_refs);
+            const updatesByChallan = {};
+            refs.forEach(r => {
+                if(!updatesByChallan[r.challanId]) updatesByChallan[r.challanId] = [];
+                updatesByChallan[r.challanId].push(r.itemIndex);
+            });
+            
+            const promises = Object.keys(updatesByChallan).map(cId => {
+                return db.ref('challans/' + cId).once('value').then(snap => {
+                    if(!snap.exists()) return;
+                    let cData = snap.val();
+                    let items = JSON.parse(cData.items);
+                    updatesByChallan[cId].forEach(idx => {
+                        if(items[idx]) items[idx].billed = false;
+                    });
+                    const allBilled = items.some(i => i.billed === true);
+                    return db.ref('challans/' + cId).update({
+                        items: JSON.stringify(items),
+                        status: allBilled ? 'partial' : 'pending'
+                    });
+                });
+            });
+            
+            Promise.all(promises).then(() => {
+                return db.ref('bills/' + id).remove();
+            }).then(() => {
+                showToast('Bill deleted, challan status reverted to pending');
+            }).catch(e => showToast(e.message, 'error'));
+        } else {
+            db.ref('bills/' + id).remove();
+            showToast('Bill deleted');
         }
+    } else {
+        db.ref((type==='party'?'parties':type==='challan'?'challans':'bills')+'/'+id).remove();
+        showToast('Deleted successfully');
     }
-
+}
     function showToast(msg, type='success') {
         const t = document.createElement('div'); t.className = `toast ${type==='error'?'error':''}`; t.textContent = msg;
         document.body.appendChild(t); setTimeout(()=>t.remove(), 3000);
@@ -1284,10 +1545,6 @@ function numberToWords(num, currency = 'Taka') {
     }
 </script>
 </body>
-</html>
-    
-  </body>
-  
 </html>
     
   </body>
