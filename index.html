@@ -2027,7 +2027,18 @@
     // --- Logic: Challan ---
     function generateChallanNumber() { 
         if(editingChallanId) return;
-        document.getElementById('c_no').value = `GMS-CH-${new Date().getFullYear()}-${String(challans.length+1).padStart(5,'0')}`; 
+        // Find the highest existing challan number to avoid duplicates
+        let maxNum = 0;
+        const year = new Date().getFullYear();
+        challans.forEach(c => {
+            const match = c.challan_no && c.challan_no.match(/GMS-CH-\d+-(\d+)/);
+            if(match) {
+                const num = parseInt(match[1]);
+                if(num > maxNum) maxNum = num;
+            }
+        });
+        const nextNum = maxNum + 1;
+        document.getElementById('c_no').value = `GMS-CH-${year}-${String(nextNum).padStart(5,'0')}`; 
     }
     
     let itemCounter = 0;
@@ -2275,7 +2286,20 @@
     }
 
     // --- Bill Logic ---
-    function generateBillNumber() { document.getElementById('bp_no').value = `GMS-BILL-${new Date().getFullYear()}-${String(bills.length+1).padStart(5,'0')}`; }
+    function generateBillNumber() {
+        // Find the highest existing bill number to avoid duplicates
+        let maxNum = 0;
+        const year = new Date().getFullYear();
+        bills.forEach(b => {
+            const match = b.bill_no && b.bill_no.match(/GMS-BILL-\d+-(\d+)/);
+            if(match) {
+                const num = parseInt(match[1]);
+                if(num > maxNum) maxNum = num;
+            }
+        });
+        const nextNum = maxNum + 1;
+        document.getElementById('bp_no').value = `GMS-BILL-${year}-${String(nextNum).padStart(5,'0')}`;
+    }
     function resetBillSteps() {
         editingBillId = null;
         document.getElementById('bill-step-1').classList.add('active');
@@ -2580,7 +2604,7 @@
                 <div class="print-details" style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
                     <div>
                         <p><strong>Challan No:</strong> ${c.challan_no}</p>
-                        <p><strong>Date:</strong> ${c.date}</p>
+                        <p><strong>Date:</strong> ${formatDateToMonthName(c.date)}</p>
                         <p><strong>Party:</strong> ${c.party_name}</p>
                         <p><strong>Buyer:</strong> ${c.buyer_name||'-'}</p>
                         <p><strong>Department:</strong> ${c.department||'-'}</p>
@@ -2651,6 +2675,22 @@
         }); // End of ensureChallansLoaded
     }
 
+    // --- Date Formatting for Print ---
+    function formatDateToMonthName(dateStr) {
+        if(!dateStr || dateStr === '-') return '-';
+        const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+        const parts = dateStr.split('-');
+        if(parts.length === 3) {
+            const year = parts[0];
+            const month = parseInt(parts[1]) - 1;
+            const day = parseInt(parts[2]);
+            if(month >= 0 && month <= 11) {
+                return day + ' ' + months[month] + ', ' + year;
+            }
+        }
+        return dateStr; // Return as-is if parsing fails
+    }
+
     function printBill(id) {
         // Ensure bills and challans are loaded
         Promise.all([ensureBillsLoaded(), ensureChallansLoaded()]).then(() => {
@@ -2684,7 +2724,8 @@
                     ...itemData, 
                     ...bi, 
                     challan_no: ref.challanNo,
-                    challan_date: challanDate
+                    challan_date: challanDate,
+                    challan_date_sort: challanDate // For sorting
                 });
             });
         } else if(b.challan_ids) {
@@ -2701,11 +2742,20 @@
                     totalFinKg += finKg;
                     totalPcs += pcs;
                     totalUnitVal += unitVal;
-                    allItems.push({ ...i, ...bi, challan_no: c.challan_no, challan_date: c.date });
+                    allItems.push({ ...i, ...bi, challan_no: c.challan_no, challan_date: c.date, challan_date_sort: c.date });
                     billItemIdx++;
                 });
             });
         }
+
+        // Sort allItems by challan date in serial order (ascending)
+        allItems.sort((a, b) => {
+            const dateA = a.challan_date_sort || '';
+            const dateB = b.challan_date_sort || '';
+            if(dateA < dateB) return -1;
+            if(dateA > dateB) return 1;
+            return 0;
+        });
 
         const getPage = (copyType) => `
             <div class="print-page">
@@ -2714,8 +2764,8 @@
                 <div class="print-details" style="display:grid; grid-template-columns:1fr 1fr; gap:15px;">
                     <div>
                         <p><strong>Bill No:</strong> ${b.bill_no}</p>
-                        <p><strong>Date:</strong> ${b.date}</p>
-                        <p><strong>Month:</strong> ${b.month}</p>
+                        <p><strong>Date:</strong> ${formatDateToMonthName(b.date)}</p>
+                        <p><strong>Month:</strong> ${b.month || '-'}</p>
                     </div>
                     <div>
                         <p><strong>Party:</strong> ${b.party_name}</p>
@@ -2744,7 +2794,7 @@
                             <tr>
                                 <td>${ix + 1}</td>
                                 <td>${i.challan_no}</td>
-                                <td>${i.challan_date || '-'}</td>
+                                <td>${formatDateToMonthName(i.challan_date)}</td>
                                 <td>${i.ashar_no || '-'}</td>
                                 <td>${i.style || '-'}</td>
                                 <td>${i.item_name || '-'}</td>
