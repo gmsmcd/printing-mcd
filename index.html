@@ -218,9 +218,9 @@
             }
             .print-table th { background: #f0f0f0; }
             
-            /* FIX: Signature section stays with content above it */
+            /* FIX: Signature section with enough space for signing */
             .print-footer { 
-                margin-top: 12px; 
+                margin-top: 60px; 
                 color: #000; 
                 break-inside: avoid;
                 page-break-inside: avoid;
@@ -228,12 +228,12 @@
             .print-signature-grid {
                 display: grid; 
                 grid-template-columns: repeat(5, 1fr); 
-                gap: 8px; 
+                gap: 12px; 
                 text-align: center; 
-                margin-top: 8px;
+                margin-top: 10px;
             }
             .print-signature-box {
-                height: 35px; 
+                height: 50px; 
                 border-bottom: 1px dashed #000; 
                 margin-bottom: 4px; 
             }
@@ -260,17 +260,20 @@
         .print-signature-grid {
             display: grid; 
             grid-template-columns: repeat(5, 1fr); 
-            gap: 8px; 
+            gap: 12px; 
             text-align: center; 
-            margin-top: 8px;
+            margin-top: 10px;
         }
         .print-signature-box {
-            height: 35px; 
+            height: 50px; 
             border-bottom: 1px dashed #000; 
             margin-bottom: 4px; 
         }
         .print-signature-label {
             font-size: 10px;
+        }
+        .print-footer {
+            margin-top: 60px;
         }
 
         .bill-step { display: none; }
