@@ -2821,7 +2821,7 @@
                         </tr>
                         ${b.order_qty_note ? `<tr><td colspan="13" style="font-size:10px;"><strong>According to Order Qty:</strong> ${b.order_qty_note}</td></tr>` : ''}
                         ${b.additional_notes ? `<tr><td colspan="13" style="font-size:10px;"><strong>Additional Notes:</strong> ${b.additional_notes}</td></tr>` : ''}
-                        <tr><td colspan="13" style="font-size:10px;"><strong>In Words:</strong> ${b.amount_in_words}</td></tr>
+                        <tr><td colspan="13" style="font-size:10px;"><strong>In Words:</strong> ${numberToWords(parseFloat(b.net_total) || 0, (billItems[0] && billItems[0].currency === '$') ? 'Dollars' : 'Taka')}</td></tr>
                     </tbody>
                 </table>
                 ${getSignatureFooter()}
@@ -2852,15 +2852,19 @@
         document.getElementById('bp_date').value = b.date;
         document.getElementById('bp_month').value = b.month;
         document.getElementById('selected-challan-nos').textContent = b.challan_nos;
+        const billItems = JSON.parse(b.bill_items);
+
         document.getElementById('b_subtotal').value = b.sub_total;
         document.getElementById('b_nettotal').value = b.net_total;
         document.getElementById('b_nettotal_display').textContent = b.net_total;
-        document.getElementById('b_amount_words').value = b.amount_in_words;
-        document.getElementById('b_amount_words_display').textContent = b.amount_in_words;
+        // Recalculate amount_in_words from net_total to fix old bills missing paisa in words
+        const recalcCurrency = (billItems[0] && billItems[0].currency === '$') ? 'Dollars' : 'Taka';
+        const recalcWords = numberToWords(parseFloat(b.net_total) || 0, recalcCurrency);
+        document.getElementById('b_amount_words').value = recalcWords;
+        document.getElementById('b_amount_words_display').textContent = recalcWords;
         document.getElementById('b_order_qty_note').value = b.order_qty_note || '';
         document.getElementById('b_additional_notes').value = b.additional_notes || '';
         
-        const billItems = JSON.parse(b.bill_items);
         // Restore unit header dropdown from saved data
         const savedUnitType = (billItems[0] && billItems[0].unit_type) ? billItems[0].unit_type : 'LBS';
         const unitHeader = document.getElementById('b_unit_header');
@@ -3057,20 +3061,46 @@
     function confirmPrint() { closePreview(); setTimeout(()=>window.print(), 300); }
 
     function numberToWords(num, currency = 'Taka') {
-        if(num===0) return 'Zero ' + currency;
+        if(num===0) return 'Zero ' + currency + ' Only';
         const a = ['','One ','Two ','Three ','Four ', 'Five ','Six ','Seven ','Eight ','Nine ','Ten ','Eleven ','Twelve ','Thirteen ','Fourteen ','Fifteen ','Sixteen ','Seventeen ','Eighteen ','Nineteen '];
         const b = ['', '', 'Twenty','Thirty','Forty','Fifty', 'Sixty','Seventy','Eighty','Ninety'];
-        const n = ('000000000' + parseInt(num)).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
-        if(!n) return ''; 
-        let str = '';
-        str += (n[1] != 0) ? (a[Number(n[1])] || b[n[1][0]] + ' ' + a[n[1][1]]) + 'Crore ' : '';
-        str += (n[2] != 0) ? (a[Number(n[2])] || b[n[2][0]] + ' ' + a[n[2][1]]) + 'Lakh ' : '';
-        str += (n[3] != 0) ? (a[Number(n[3])] || b[n[3][0]] + ' ' + a[n[3][1]]) + 'Thousand ' : '';
-        str += (n[4] != 0) ? (a[Number(n[4])] || b[n[4][0]] + ' ' + a[n[4][1]]) + 'Hundred ' : '';
-        
-        str += (n[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(n[5])] || b[n[5][0]] + ' ' + a[n[5][1]]) : '';
-        
-        return str + ' ' + currency + ' Only';
+
+        // Separate integer and decimal parts
+        let intPart = Math.floor(Math.abs(num));
+        let decPart = Math.round((Math.abs(num) - intPart) * 100);
+
+        function convertInteger(n) {
+            if(n===0) return '';
+            const m = ('000000000' + n).substr(-9).match(/^(\d{2})(\d{2})(\d{2})(\d{1})(\d{2})$/);
+            if(!m) return '';
+            let str = '';
+            str += (m[1] != 0) ? (a[Number(m[1])] || b[m[1][0]] + ' ' + a[m[1][1]]) + 'Crore ' : '';
+            str += (m[2] != 0) ? (a[Number(m[2])] || b[m[2][0]] + ' ' + a[m[2][1]]) + 'Lakh ' : '';
+            str += (m[3] != 0) ? (a[Number(m[3])] || b[m[3][0]] + ' ' + a[m[3][1]]) + 'Thousand ' : '';
+            str += (m[4] != 0) ? (a[Number(m[4])] || b[m[4][0]] + ' ' + a[m[4][1]]) + 'Hundred ' : '';
+            str += (m[5] != 0) ? ((str != '') ? 'and ' : '') + (a[Number(m[5])] || b[m[5][0]] + ' ' + a[m[5][1]]) : '';
+            return str;
+        }
+
+        let result = '';
+        const paisaCurrency = (currency === 'Dollars') ? 'Cents' : 'Paisa';
+
+        if(intPart > 0) {
+            result = convertInteger(intPart) + currency;
+        }
+
+        if(decPart > 0) {
+            if(intPart > 0) {
+                result += ' and ';
+            }
+            result += convertInteger(decPart) + paisaCurrency;
+        }
+
+        if(intPart === 0 && decPart === 0) {
+            result = 'Zero ' + currency;
+        }
+
+        return result + ' Only';
     }
 </script>
 </body>
